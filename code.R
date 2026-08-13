@@ -16,7 +16,7 @@ library(readxl)
 library(ggrepel)
 library(ggpmisc)
 
-# color palette for the QC data ---
+# color palette for the QC data
 # blank <- "#0E131F"
 # pool <- "#077187"
 # sample <- "#FCA17D"
