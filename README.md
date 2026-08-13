@@ -1,1 +1,1 @@
-Quality control shiny app for Affinity Proteomics analysis
+Quality control shiny app for Affinity Proteomics analysis 
