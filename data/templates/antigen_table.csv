@@ -1,0 +1,17 @@
+antigen,bead_id,virus_genus,Pathogen,Antigen_Group
+DENV1_NS1,12,Flavivirus,Dengue virus 1,NS1
+DENV2_NS1,18,Flavivirus,Dengue virus 2,NS1
+DENV3_NS1,25,Flavivirus,Dengue virus 3,NS1
+DENV4_NS1,33,Flavivirus,Dengue virus 4,NS1
+ZIKV_NS1,42,Flavivirus,Zika virus,NS1
+ZIKV_EDIII,45,Flavivirus,Zika virus,Envelope
+CHIKV_E1,51,Alphavirus,Chikungunya,Envelope
+CHIKV_E2,56,Alphavirus,Chikungunya,Envelope
+WNV_NS1,62,Flavivirus,West Nile virus,NS1
+YFV_NS1,70,Flavivirus,Yellow fever,NS1
+SARS2_S1,77,Betacoronavirus,SARS-CoV-2,Spike
+SARS2_N,85,Betacoronavirus,SARS-CoV-2,Nucleocapsid
+EBNA1,20,Lymphocryptovirus,Epstein-Barr,Nuclear
+Bare,90,Control,None,Empty_bead
+ahIgG,95,Control,None,Anti-human_IgG
+ahIgM,100,Control,None,Anti-human_IgM
