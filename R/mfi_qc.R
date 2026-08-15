@@ -40,53 +40,37 @@ mfi_control_thresholds <- function(merged,
 }
 
 # ---------------------------------------------------------------------------
-# Abundance vs. control-bead MFI scatter
+# Median MFI of the control beads themselves (empty, ahIgG, ahIgM)
 # ---------------------------------------------------------------------------
 
-#' Long data pairing each non-control analyte's abundance in a well with the
-#' control-bead MFI values measured in that same well.
-mfi_vs_controls_data <- function(merged,
-                                 controls = CONTROL_LABELS[c("empty", "pos_igg", "neg_igm")]) {
-  ctrl_wide <- merged |>
-    dplyr::filter(antigen %in% controls) |>
-    dplyr::select(well_384, antigen, median_mfi) |>
-    tidyr::pivot_wider(names_from = antigen, values_from = median_mfi,
-                       names_prefix = "ctrl_")
-
-  merged |>
-    dplyr::filter(!antigen %in% CONTROL_LABELS) |>
-    dplyr::left_join(ctrl_wide, by = "well_384") |>
-    tidyr::pivot_longer(dplyr::starts_with("ctrl_"),
-                        names_to = "control_bead", values_to = "control_mfi") |>
-    dplyr::mutate(control_bead = stringr::str_remove(control_bead, "^ctrl_"))
-}
-
-#' Scatter: antigen abundance (y) vs. control-bead MFI (x), one facet per
-#' control bead, colored by sample type.
+#' Scatter (jittered strip plot) of Median MFI for the control beads only
+#' (empty/Bare, ahIgG, ahIgM by default): x = bead, y = MFI, colored by
+#' sample type. Lets the analyst confirm each control behaves as expected
+#' (ahIgG high in samples/pools, empty/ahIgM low everywhere) and spot outlier
+#' wells by hovering.
 plot_mfi_vs_controls <- function(merged,
-                                 controls = CONTROL_LABELS[c("empty", "pos_igg", "neg_igm")],
+                                 controls = CONTROL_LABELS[c("empty", "neg_igm", "pos_igg")],
                                  interactive = TRUE) {
-  df <- mfi_vs_controls_data(merged, controls) |>
-    dplyr::mutate(tooltip = sprintf(
-      "Sample: %s (%s)\nAntigen: %s\n%s MFI: %.0f\nAbundance: %.0f",
-      sample_id, sample_type, antigen, control_bead, control_mfi, median_mfi
-    ))
+  df <- merged |>
+    dplyr::filter(antigen %in% controls) |>
+    dplyr::mutate(
+      antigen = factor(antigen, levels = controls),
+      tooltip = sprintf("Sample: %s (%s)\nBead: %s\nWell: %s\nMFI: %.0f",
+                        sample_id, sample_type, antigen, well_384, median_mfi)
+    )
 
-  p <- ggplot(df, aes(x = control_mfi, y = median_mfi, color = sample_type)) +
+  p <- ggplot(df, aes(x = antigen, y = median_mfi, color = sample_type)) +
     (if (interactive) {
-      geom_point_interactive(aes(tooltip = tooltip, data_id = paste(well_384, antigen)),
-                             alpha = 0.5, size = 1.2)
-    } else geom_point(alpha = 0.5, size = 1.2)) +
-    scale_x_log10() +
-    scale_y_log10() +
+      geom_jitter_interactive(aes(tooltip = tooltip, data_id = well_384),
+                              width = 0.15, alpha = 0.6, size = 1.4)
+    } else geom_jitter(width = 0.15, alpha = 0.6, size = 1.4)) +
     scale_color_manual(values = SAMPLE_TYPE_COLORS, name = "Sample type") +
-    facet_wrap(~control_bead, scales = "free_x") +
-    labs(x = "Control bead Median MFI (log scale)",
-         y = "Antigen Median MFI (log scale)",
-         title = "Antigen abundance vs. control bead MFI") +
+    scale_y_continuous(labels = scales::comma) +
+    labs(x = "Antigens", y = "Raw MFI Values",
+         title = "Raw MFI value vs control beads") +
     theme_minimal(base_size = 11)
 
-  if (interactive) girafe(ggobj = p, width_svg = 10, height_svg = 4.3) else p
+  if (interactive) girafe(ggobj = p, width_svg = 8, height_svg = 5) else p
 }
 
 # ---------------------------------------------------------------------------
@@ -129,10 +113,11 @@ plot_mfi_by_sample <- function(merged, quadrant = NULL, sample_types = NULL,
   }
 
   p <- p +
-    labs(x = NULL, y = "Median MFI (log scale)",
-         title = "Median MFI by sample") +
+    labs(x = "Cohort", y = "Signal (log scale)",
+         title = "Raw MFI value vs all samples",
+         subtitle = "Signals across samples") +
     theme_minimal(base_size = 11) +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 5))
+    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
 
   if (interactive) girafe(ggobj = p, width_svg = 11, height_svg = 5) else p
 }
@@ -141,28 +126,38 @@ plot_mfi_by_sample <- function(merged, quadrant = NULL, sample_types = NULL,
 # Boxplot: Median MFI by antigen (samples overlaid, colored by sample type)
 # ---------------------------------------------------------------------------
 
+#' Boxplot of raw Median MFI per antigen (all analytes, including controls,
+#' by default) with individual sample points overlaid. Boxes are colored by
+#' Antigen_Group (pathogen/role) and points by sample_type - two separate
+#' legends, matching the reference QC figures.
 plot_mfi_by_antigen <- function(merged, exclude_controls = FALSE,
                                 controls = CONTROL_LABELS, interactive = TRUE) {
   df <- merged
   if (exclude_controls) df <- dplyr::filter(df, !antigen %in% controls)
+  ord <- df |> dplyr::distinct(antigen, Antigen_Group) |>
+    dplyr::arrange(Antigen_Group, antigen) |> dplyr::pull(antigen)
   df <- df |>
-    dplyr::mutate(tooltip = sprintf("Sample: %s (%s)\nAntigen: %s\nMFI: %.0f",
-                                    sample_id, sample_type, antigen, median_mfi))
+    dplyr::mutate(
+      antigen = factor(antigen, levels = ord),
+      tooltip = sprintf("Sample: %s (%s)\nAntigen: %s\nMFI: %.0f",
+                        sample_id, sample_type, antigen, median_mfi)
+    )
 
   p <- ggplot(df, aes(x = antigen, y = median_mfi)) +
-    geom_boxplot(outlier.shape = NA, fill = NA, color = "grey40", linewidth = 0.3) +
+    geom_boxplot(aes(fill = Antigen_Group), outlier.shape = NA, alpha = 0.3, linewidth = 0.3) +
     (if (interactive) {
       geom_jitter_interactive(aes(color = sample_type, tooltip = tooltip, data_id = well_384),
-                              width = 0.15, alpha = 0.4, size = 0.8)
-    } else geom_jitter(aes(color = sample_type), width = 0.15, alpha = 0.4, size = 0.8)) +
+                              width = 0.15, alpha = 0.5, size = 0.8)
+    } else geom_jitter(aes(color = sample_type), width = 0.15, alpha = 0.5, size = 0.8)) +
     scale_color_manual(values = SAMPLE_TYPE_COLORS, name = "Sample type") +
-    scale_y_log10() +
-    labs(x = NULL, y = "Median MFI (log scale)",
-         title = "Median MFI by antigen") +
+    scale_y_continuous(labels = scales::comma) +
+    guides(fill = guide_legend(title = "Antigen group")) +
+    labs(x = "Antigens", y = "Raw MFI Values",
+         title = "Raw MFI value vs antigens") +
     theme_minimal(base_size = 11) +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-  if (interactive) girafe(ggobj = p, width_svg = 10, height_svg = 5) else p
+  if (interactive) girafe(ggobj = p, width_svg = 11, height_svg = 5.5) else p
 }
 
 # ---------------------------------------------------------------------------
@@ -212,9 +207,9 @@ compute_pool_cv <- function(merged, pool_type = "pool",
     dplyr::arrange(dplyr::desc(cv_pct))
 }
 
-#' CV% vs antigen for pool samples, with a reference line (default 20%).
-#' Control beads are excluded by default: their CV is naturally inflated by
-#' near-background noise and doesn't reflect antigen reproducibility.
+#' Bar chart of pool reproducibility (CV%) by antigen: one bar per antigen,
+#' height = CV%, with a dashed reference line (default 20%) and bars above
+#' the threshold colored red.
 plot_pool_cv <- function(merged, pool_type = "pool", cv_threshold = 20,
                          exclude_controls = TRUE, controls = CONTROL_LABELS,
                          interactive = TRUE) {
@@ -227,11 +222,11 @@ plot_pool_cv <- function(merged, pool_type = "pool", cv_threshold = 20,
     )
 
   p <- ggplot(cv, aes(x = antigen, y = cv_pct)) +
-    geom_hline(yintercept = cv_threshold, linetype = "dashed", color = "grey40") +
     (if (interactive) {
-      geom_point_interactive(aes(color = above, tooltip = tooltip, data_id = antigen), size = 3)
-    } else geom_point(aes(color = above), size = 3)) +
-    scale_color_manual(values = c(`TRUE` = "#D7301F", `FALSE` = "#2C7FB8"), guide = "none") +
+      geom_col_interactive(aes(fill = above, tooltip = tooltip, data_id = antigen))
+    } else geom_col(aes(fill = above))) +
+    geom_hline(yintercept = cv_threshold, linetype = "dashed", color = "grey40") +
+    scale_fill_manual(values = c(`TRUE` = "#D7301F", `FALSE` = "#2C7FB8"), guide = "none") +
     labs(x = NULL, y = "CV % (Median MFI, pools)",
          title = "Pool reproducibility (CV%) by antigen",
          subtitle = paste0("Dashed line = ", cv_threshold, "% threshold; red = above threshold")) +
@@ -240,3 +235,4 @@ plot_pool_cv <- function(merged, pool_type = "pool", cv_threshold = 20,
 
   if (interactive) girafe(ggobj = p, width_svg = 9, height_svg = 5) else p
 }
+
