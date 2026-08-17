@@ -141,7 +141,7 @@ plot_plate_beadcount <- function(merged, view = "min",
     scale_y_reverse(breaks = 1:16, labels = LETTERS[1:16], expand = c(0, 0)) +
     coord_equal() +
     labs(x = NULL, y = NULL,
-         title = "384-well plate — bead count QC",
+         title = "384-well plate - bead count QC",
          subtitle = subtitle) +
     theme_minimal(base_size = 11) +
     theme(
@@ -157,7 +157,8 @@ plot_plate_beadcount <- function(merged, view = "min",
     options = list(
       opts_hover(css = "stroke:black;stroke-width:1.5px;cursor:pointer;"),
       opts_selection(type = "multiple", css = "stroke:black;stroke-width:2px;"),
-      opts_tooltip(css = "background:#333;color:#fff;padding:6px;border-radius:4px;font-size:12px;")
+      opts_tooltip(css = "background:#333;color:#fff;padding:6px;border-radius:4px;font-size:12px;"),
+      opts_sizing(rescale = TRUE)
     )
   )
 }

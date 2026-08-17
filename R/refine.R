@@ -61,6 +61,20 @@ flagged_for_review <- function(flags) {
 }
 
 # ---------------------------------------------------------------------------
+# Sample removal template (analyst decides removals manually from MFI review)
+# ---------------------------------------------------------------------------
+
+#' Every current sample_id, for the analyst to download, edit down to just
+#' the sample_ids they want removed (e.g. after reviewing the MFI plots),
+#' and re-upload via the manual removal list. Removal is never automatic
+#' from the MFI thresholds - it is always the analyst's explicit decision.
+sample_removal_template <- function(merged) {
+  merged |>
+    dplyr::distinct(sample_id, sample_type, well_384, Quadrant) |>
+    dplyr::arrange(sample_type, sample_id)
+}
+
+# ---------------------------------------------------------------------------
 # Manual removal list (analyst-identified lab errors)
 # ---------------------------------------------------------------------------
 

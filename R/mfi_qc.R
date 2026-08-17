@@ -70,7 +70,10 @@ plot_mfi_vs_controls <- function(merged,
          title = "Raw MFI value vs control beads") +
     theme_minimal(base_size = 11)
 
-  if (interactive) girafe(ggobj = p, width_svg = 8, height_svg = 5) else p
+  if (interactive) {
+    girafe(ggobj = p, width_svg = 8, height_svg = 5.5,
+          options = list(opts_sizing(rescale = TRUE)))
+  } else p
 }
 
 # ---------------------------------------------------------------------------
@@ -119,7 +122,10 @@ plot_mfi_by_sample <- function(merged, quadrant = NULL, sample_types = NULL,
     theme_minimal(base_size = 11) +
     theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
 
-  if (interactive) girafe(ggobj = p, width_svg = 11, height_svg = 5) else p
+  if (interactive) {
+    girafe(ggobj = p, width_svg = 11, height_svg = 6.5,
+          options = list(opts_sizing(rescale = TRUE)))
+  } else p
 }
 
 # ---------------------------------------------------------------------------
@@ -157,33 +163,44 @@ plot_mfi_by_antigen <- function(merged, exclude_controls = FALSE,
     theme_minimal(base_size = 11) +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-  if (interactive) girafe(ggobj = p, width_svg = 11, height_svg = 5.5) else p
+  if (interactive) {
+    girafe(ggobj = p, width_svg = 11, height_svg = 6,
+          options = list(opts_sizing(rescale = TRUE)))
+  } else p
 }
 
 # ---------------------------------------------------------------------------
 # Boxplot: Median MFI by sample_type, faceted by antigen (user-selectable)
 # ---------------------------------------------------------------------------
 
+#' Median MFI vs sample type for one (or more) chosen antigens. x-axis order
+#' is fixed to blank -> pool -> sample regardless of alphabetical/factor order.
 plot_mfi_by_antigen_facet <- function(merged, antigens = NULL, interactive = TRUE) {
   df <- merged
   if (!is.null(antigens)) df <- dplyr::filter(df, antigen %in% antigens)
   df <- df |>
-    dplyr::mutate(tooltip = sprintf("Sample: %s\nMFI: %.0f", sample_id, median_mfi))
+    dplyr::mutate(
+      sample_type = factor(sample_type, levels = c("blank", "pool", "sample")),
+      tooltip = sprintf("Sample: %s\nMFI: %.0f", sample_id, median_mfi)
+    )
 
   p <- ggplot(df, aes(x = sample_type, y = median_mfi, color = sample_type)) +
     geom_boxplot(outlier.shape = NA, fill = NA) +
     (if (interactive) {
       geom_jitter_interactive(aes(tooltip = tooltip, data_id = well_384),
-                              width = 0.2, alpha = 0.4, size = 0.8)
-    } else geom_jitter(width = 0.2, alpha = 0.4, size = 0.8)) +
+                              width = 0.2, alpha = 0.4, size = 1.2)
+    } else geom_jitter(width = 0.2, alpha = 0.4, size = 1.2)) +
     scale_color_manual(values = SAMPLE_TYPE_COLORS, guide = "none") +
     scale_y_log10() +
     facet_wrap(~antigen, scales = "free_y") +
     labs(x = NULL, y = "Median MFI (log scale)",
-         title = "Median MFI by sample type, per antigen") +
-    theme_minimal(base_size = 11)
+         title = "Median MFI by sample type") +
+    theme_minimal(base_size = 12)
 
-  if (interactive) girafe(ggobj = p, width_svg = 10, height_svg = 6) else p
+  if (interactive) {
+    girafe(ggobj = p, width_svg = 9, height_svg = 6,
+          options = list(opts_sizing(rescale = TRUE)))
+  } else p
 }
 
 # ---------------------------------------------------------------------------
@@ -233,6 +250,9 @@ plot_pool_cv <- function(merged, pool_type = "pool", cv_threshold = 20,
     theme_minimal(base_size = 11) +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-  if (interactive) girafe(ggobj = p, width_svg = 9, height_svg = 5) else p
+  if (interactive) {
+    girafe(ggobj = p, width_svg = 9, height_svg = 6,
+          options = list(opts_sizing(rescale = TRUE)))
+  } else p
 }
 

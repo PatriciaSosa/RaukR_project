@@ -50,3 +50,37 @@ build_qc_report <- function(parsed, thresholds, flags, removal_log = NULL) {
 
   paste(lines, collapse = "\n")
 }
+
+#' Export the QC report as a PDF: a plain-text summary page (same content as
+#' build_qc_report(), with Markdown syntax stripped) followed by the 384-well
+#' bead-count plate ("min" view) and the top 3 MFI plots as static figures.
+#' Uses only base R graphics devices, no external PDF/LaTeX tools required.
+export_qc_report_pdf <- function(path, parsed, thresholds, flags, merged,
+                                 removal_log = NULL) {
+  txt <- build_qc_report(parsed, thresholds, flags, removal_log)
+  lines <- strsplit(txt, "\n")[[1]]
+  lines <- gsub("\\*\\*", "", lines)
+  lines <- sub("^## ", "", lines)
+  lines <- sub("^# ", "", lines)
+
+  grDevices::pdf(path, width = 8.5, height = 11)
+  on.exit(grDevices::dev.off(), add = TRUE)
+
+  # Text summary, paginated ~50 lines per page.
+  page_size <- 50
+  pages <- split(lines, ceiling(seq_along(lines) / page_size))
+  for (pg in pages) {
+    grid::grid.newpage()
+    grid::grid.text(
+      paste(pg, collapse = "\n"), x = 0.04, y = 0.97, just = c("left", "top"),
+      gp = grid::gpar(fontfamily = "mono", fontsize = 9)
+    )
+  }
+
+  print(plot_plate_beadcount(merged, view = "min", interactive = FALSE))
+  print(plot_mfi_vs_controls(merged, interactive = FALSE))
+  print(plot_mfi_by_antigen(merged, interactive = FALSE))
+  print(plot_mfi_by_sample(merged, thresholds = thresholds, interactive = FALSE))
+
+  invisible(path)
+}
