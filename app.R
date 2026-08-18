@@ -4,7 +4,7 @@
 library(shiny)
 library(bslib)
 library(tidyverse)
-library(ggiraph)
+library(plotly)
 library(DT)
 
 source("R/ingest.R")
@@ -30,7 +30,7 @@ navbar_css <- tags$style(HTML("
 ui <- tagList(
   tags$head(navbar_css),
   page_navbar(
-    title = "Serology QC \u2014 Affinity Proteomics",
+    title = "Serology QC",
     theme = bs_theme(version = 5, primary = "#2C7FB8"),
     sidebar = sidebar(
       title = "1. Load data",
@@ -45,52 +45,52 @@ ui <- tagList(
       helpText("Until you upload your own files, the app runs on the bundled synthetic example data.")
     ),
     nav_panel(
-      "Bead count QC",
+      "Bead count",
       card(
         full_screen = TRUE,
-        card_header("384-well plate \u2014 bead count"),
+        card_header("Bead count in your 384-well plate"),
         selectInput("plate_view_mode", "View", choices = c("min"), selected = "min", width = "320px"),
-        girafeOutput("plate_plot", height = "650px")
+        plotlyOutput("plate_plot", height = "650px")
       )
     ),
     nav_panel(
-      "MFI QC",
+      "MFI analysis",
       layout_column_wrap(
         width = 1/2,
-        card(full_screen = TRUE, card_header("Raw MFI value vs control beads"),
-             girafeOutput("mfi_controls", height = "480px")),
-        card(full_screen = TRUE, card_header("Raw MFI value vs antigens"),
-             girafeOutput("mfi_antigen", height = "480px")),
-        card(full_screen = TRUE, card_header("Raw MFI value vs all samples"),
-             girafeOutput("mfi_sample", height = "480px")),
+        card(full_screen = TRUE, card_header("Raw MFI vs control beads"),
+             plotlyOutput("mfi_controls", height = "480px")),
+        card(full_screen = TRUE, card_header("Raw MFI vs antigens"),
+             plotlyOutput("mfi_antigen", height = "480px")),
+        card(full_screen = TRUE, card_header("Median MFI vs sample type"),
+             selectInput("facet_antigen", "Antigen", choices = NULL, width = "480px"),
+             plotlyOutput("mfi_facet", height = "480px")),
         card(full_screen = TRUE, card_header("Pool reproducibility (CV%)"),
-             girafeOutput("mfi_cv", height = "480px"))
+             plotlyOutput("mfi_cv", height = "480px"))
       ),
       card(
         full_screen = TRUE,
-        card_header("Median MFI by sample type, for one antigen"),
-        selectInput("facet_antigen", "Antigen", choices = NULL, width = "320px"),
-        girafeOutput("mfi_facet", height = "550px")
+        card_header("Raw MFI vs cohort"),
+        plotlyOutput("mfi_sample", height = "550px")
       )
     ),
     nav_panel(
-      "Refinement",
+      "Filtering",
       layout_column_wrap(
         width = 1/2,
         card(
-          card_header("QC flags (review before removing)"),
+          card_header("Samples with bad or moderate bead count"),
           DTOutput("flags_table")
         ),
         card(
-          card_header("Removal decisions"),
-          checkboxGroupInput("remove_categories", "Remove wells with bead-count quality:",
+          card_header("Filtering your data"),
+          checkboxGroupInput("remove_categories", "Remove samples by bead count quality:",
                              choices = c("Bad", "Moderate"), selected = character(0)),
           p(class = "text-muted small",
-            "MFI-based removal is always the analyst's decision, based on reviewing the MFI plots \u2014 there is no automatic threshold removal here."),
-          downloadButton("dl_sample_removal_template", "Download sample list template",
+            "MFI-based removal is always the analyst's decision, based on the MFI plots."),
+          downloadButton("dl_sample_removal_template", "Download sample list here",
                          class = "btn-sm w-100 mb-2"),
           helpText("Edit the downloaded file down to just the sample_id rows you want removed, then upload it below."),
-          fileInput("manual_removal_csv", "Manual removal list (CSV with sample_id column)", accept = ".csv"),
+          fileInput("manual_removal_csv", "Sample removal list", accept = ".csv"),
           actionButton("apply_removal", "Apply removal", class = "btn-primary"),
           hr(),
           verbatimTextOutput("removal_log")
@@ -98,12 +98,12 @@ ui <- tagList(
       )
     ),
     nav_panel(
-      "Export",
+      "Download files",
       card(
-        card_header("Downloads"),
-        downloadButton("dl_clean", "Download cleaned dataset (long format)", class = "w-100 mb-2"),
-        downloadButton("dl_flags", "Download QC flags", class = "w-100 mb-2"),
-        downloadButton("dl_report", "Download QC report (PDF)", class = "w-100")
+        card_header("Files to export"),
+        downloadButton("dl_clean", "Download long format cleaned dataset", class = "w-100 mb-2"),
+        downloadButton("dl_flags", "Download samples with poor bead count", class = "w-100 mb-2"),
+        downloadButton("dl_report", "Download Report (PDF)", class = "w-100")
       )
     )
   )
@@ -137,6 +137,11 @@ server <- function(input, output, session) {
     list(
       parsed = parsed, long = long,
       merged = merge_qc_data(long, va$data, vt$data),
+      # Derived per-dataset from the antigen table's own Antigen_Group
+      # metadata (see derive_control_labels()), instead of assuming this
+      # study's literal antigen names - different virus panels use
+      # different antigen names, but the control-bead roles are consistent.
+      controls = derive_control_labels(va$data),
       warnings = c(va$warnings, vt$warnings)
     )
   })
@@ -157,25 +162,41 @@ server <- function(input, output, session) {
   })
 
   observe({
+    # No hardcoded default antigen here: different studies run different
+    # virus panels, so we simply default to the first antigen alphabetically
+    # and let the analyst pick whichever one they want from the dropdown.
     ants <- sort(unique(loaded()$merged$antigen))
-    default <- if ("CHIKV_E1" %in% ants) "CHIKV_E1" else ants[1]
-    updateSelectInput(session, "facet_antigen", choices = ants, selected = default)
+    updateSelectInput(session, "facet_antigen", choices = ants, selected = ants[1])
   })
 
-  thresholds_r <- reactive(mfi_control_thresholds(loaded()$merged))
-  flags_r <- reactive(build_sample_flags(loaded()$merged, thresholds = thresholds_r()))
+  flags_r <- reactive(build_sample_flags(loaded()$merged))
 
   # ---- Bead count QC ----
-  output$plate_plot <- renderGirafe({
+  output$plate_plot <- renderPlotly({
     plot_plate_beadcount(loaded()$merged, view = input$plate_view_mode)
   })
 
   # ---- MFI QC ----
-  output$mfi_controls <- renderGirafe(plot_mfi_vs_controls(loaded()$merged))
-  output$mfi_antigen   <- renderGirafe(plot_mfi_by_antigen(loaded()$merged))
-  output$mfi_sample    <- renderGirafe(plot_mfi_by_sample(loaded()$merged, thresholds = thresholds_r()))
-  output$mfi_cv        <- renderGirafe(plot_pool_cv(loaded()$merged))
-  output$mfi_facet <- renderGirafe({
+  # `controls` is derived per-dataset (see derive_control_labels()) rather
+  # than relying on the mfi_qc.R functions' hardcoded defaults, so this
+  # works for panels that don't use "Bare"/"ahIgG"/"ahIgM" as literal names.
+  output$mfi_controls <- renderPlotly({
+    d <- loaded()
+    plot_mfi_vs_controls(d$merged, controls = d$controls[c("empty", "neg_igm", "pos_igg")])
+  })
+  output$mfi_antigen <- renderPlotly({
+    d <- loaded()
+    plot_mfi_by_antigen(d$merged, controls = d$controls)
+  })
+  output$mfi_sample <- renderPlotly({
+    d <- loaded()
+    plot_mfi_by_sample(d$merged, controls = d$controls)
+  })
+  output$mfi_cv <- renderPlotly({
+    d <- loaded()
+    plot_pool_cv(d$merged, controls = d$controls)
+  })
+  output$mfi_facet <- renderPlotly({
     req(input$facet_antigen)
     plot_mfi_by_antigen_facet(loaded()$merged, antigens = input$facet_antigen)
   })
@@ -192,7 +213,6 @@ server <- function(input, output, session) {
     apply_qc_removals(
       loaded()$merged, flags_r(),
       remove_bead_categories = if (is.null(input$remove_categories)) character(0) else input$remove_categories,
-      remove_low_mfi = FALSE,
       manual_sample_ids = manual_ids
     )
   }, ignoreNULL = FALSE)
@@ -234,7 +254,7 @@ server <- function(input, output, session) {
     content = function(file) {
       res <- tryCatch(qc_result(), error = function(e) NULL)
       export_qc_report_pdf(
-        file, loaded()$parsed, thresholds_r(), flags_r(), loaded()$merged,
+        file, loaded()$parsed, flags_r(), loaded()$merged,
         removal_log = if (!is.null(res)) res$log else NULL
       )
     }

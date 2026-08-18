@@ -2,6 +2,10 @@
 # Pure functions (no Shiny) so they can be unit-tested on their own.
 
 library(tidyverse)
+library(dplyr)
+library(stats)
+library(readr)
+library(plotly)
 
 # ---------------------------------------------------------------------------
 # Raw xPONENT CSV parsing
@@ -108,7 +112,7 @@ flexmap_to_long <- function(parsed,
             regex = "^(\\d+)\\((\\d+),([A-P]\\d+)\\)$",
             remove = FALSE, convert = TRUE) |>
     # "Analyte.90" -> bead_id 90 (matches bead_id in the antigen table)
-    mutate(bead_id = as.numeric(str_remove(analyte, "^Analyte\\."))) |>
+    mutate(bead_id = as.numeric(str_extract(analyte, "\\d+"))) |>
     rename(location = Location, raw_sample = Sample,
            total_events = `Total Events`) |>
     relocate(run_idx, location, plate, well_384, raw_sample, analyte,
@@ -131,7 +135,14 @@ antigen_template <- function(parsed = NULL) {
   bead_ids <- if (is.null(parsed)) numeric(0) else {
     df <- parsed$tables[[parsed$datatypes[1]]]
     cols <- setdiff(names(df), c("Location", "Sample", "Total Events"))
-    as.numeric(str_remove(cols, "^Analyte\\."))
+    # Real xPONENT/FlexMap exports name analyte columns "Analyte 255" (a
+    # space), not "Analyte.255" (a dot) - read_csv() with name_repair =
+    # "minimal" keeps the header exactly as exported. str_remove() with a
+    # literal dot never matched real data, so bead_id came out as NA for
+    # every row. Extract the digits directly instead, the same permissive
+    # way flexmap_to_long() already does, so this works regardless of the
+    # separator style a given export uses.
+    as.numeric(str_extract(cols, "\\d+"))
   }
   tibble(bead_id = bead_ids) |>
     mutate(
@@ -204,6 +215,23 @@ validate_traceability_table <- function(df, long = NULL) {
     return(c(rep, list(data = df)))
   }
 
+  # Real hand-edited CSVs commonly carry stray whitespace or inconsistent
+  # case ("Pool", " blank "). merge_qc_data() later does
+  # factor(sample_type, levels = SAMPLE_TYPES): any value that isn't an
+  # *exact* match to "pool"/"blank"/"sample" is silently turned into NA,
+  # which looks like "the app doesn't recognize pools and blanks" with no
+  # error message anywhere. Normalize here, before validation, so this
+  # class of formatting slip is either fixed automatically or caught as an
+  # explicit error below instead of failing silently downstream.
+  df <- df |>
+    dplyr::mutate(
+      sample_type = tolower(trimws(sample_type)),
+      well_384 = toupper(trimws(well_384))
+    )
+
+  if (any(is.na(df$sample_type)))
+    rep <- .warn(rep, "Some sample_type values are missing; those wells will not be classified as sample/pool/blank.")
+
   bad_type <- setdiff(unique(na.omit(df$sample_type)), SAMPLE_TYPES)
   if (length(bad_type))
     rep <- .err(rep, paste("Invalid sample_type values:", paste(bad_type, collapse = ", "),
@@ -251,3 +279,12 @@ merge_qc_data <- function(long, antigen_tbl, trace_tbl) {
 
 # Colors for sample_type, reused across plots.
 SAMPLE_TYPE_COLORS <- c(sample = "#2C7FB8", pool = "#D95F02", blank = "#7F7F7F")
+
+#' Convert a ggplot to an interactive plotly widget with sensible defaults:
+#' hover tooltips sourced from the `text` aesthetic, and the mode bar enabled
+#' for zoom / pan / box-select / reset-axes (plotly's built-in interactions).
+to_plotly <- function(p, tooltip = "text") {
+  plotly::ggplotly(p, tooltip = tooltip) |>
+    plotly::layout(dragmode = "zoom", hoverlabel = list(bgcolor = "white")) |>
+    plotly::config(displaylogo = FALSE)
+}

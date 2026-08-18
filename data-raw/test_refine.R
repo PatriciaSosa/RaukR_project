@@ -22,14 +22,12 @@ flags <- build_sample_flags(merged)
 pass("One flag row per well (384)", nrow(flags) == 384)
 pass("Bead-count categories match Phase 3 (10 Bad, 15 Moderate, 359 Good)",
      all(count(flags, bead_quality)$n == c(10, 15, 359)))
-pass("low_signal_flag is logical, no NA", is.logical(flags$low_signal_flag) && !any(is.na(flags$low_signal_flag)))
-cat("\nlow_signal_flag distribution:\n"); print(count(flags, low_signal_flag))
 cat("\nflag_reason distribution:\n"); print(count(flags, flag_reason))
 
 # ---- 2. flagged_for_review ----
 review <- flagged_for_review(flags)
-pass("Review subset = Bad + Moderate (+ any low-signal) = 25",
-     nrow(review) == sum(flags$bead_quality != "Good" | flags$low_signal_flag))
+pass("Review subset = Bad + Moderate = 25",
+     nrow(review) == sum(flags$bead_quality != "Good"))
 
 # ---- 3. Manual removal list round-trip ----
 manual_ids <- flags |> filter(bead_quality == "Good") |> slice_sample(n = 3) |> pull(sample_id)
@@ -54,7 +52,7 @@ n_expected_dropped <- n_distinct(filter(flags, bead_quality %in% c("Bad", "Moder
 pass("Bad+Moderate+manual removal drops the right count",
      n_distinct(res_all$removed$well_384) == n_expected_dropped)
 pass("Removed table carries a removal_reason for every row", !any(is.na(res_all$removed$removal_reason)))
-pass("Log has 5 lines summarizing the run", length(res_all$log) == 5)
+pass("Log has 4 lines summarizing the run", length(res_all$log) == 4)
 cat("\n--- removal log ---\n"); cat(paste(res_all$log, collapse = "\n"), "\n")
 
 # ---- 6. No removals requested -> clean == merged ----

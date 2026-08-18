@@ -1,8 +1,7 @@
 # 384-well plate visualization for bead-count QC.
-# Pure functions (no Shiny); the interactive plot is a ggiraph girafe object.
+# Pure functions (no Shiny); the interactive plot is a plotly widget.
 
 library(tidyverse)
-library(ggiraph)
 
 # Quality ranges (from the plan):
 #   Bad      bead count <= 35
@@ -49,13 +48,24 @@ plate_full_grid <- function() {
 #' `limiting_analyte` records which bead is lowest in the well.
 well_bead_summary <- function(merged, view = "min",
                               bad_max = QC_BAD_MAX, good_min = QC_GOOD_MIN) {
+  has_antigen <- "antigen" %in% names(merged)
+
   if (view %in% AGG_VIEWS) {
     aggfun <- switch(view, min = min, median = stats::median, mean = mean)
     summ <- merged |>
       dplyr::group_by(well_384, sample_id, sample_type, Quadrant) |>
+      # NOTE: limiting_analyte/limiting_antigen MUST be computed before
+      # bead_count is overwritten by the aggregate below. dplyr::summarise()
+      # evaluates arguments in order and rebinds names as soon as they are
+      # created, so if `bead_count = aggfun(bead_count)` ran first,
+      # `which.min(bead_count)` would index into the already-aggregated
+      # length-1 value on every subsequent line and always return the first
+      # row of the group (i.e. always the first analyte, e.g. bead_id 255)
+      # regardless of which bead was actually lowest.
       dplyr::summarise(
+        limiting_analyte = analyte[which.min(bead_count)],
+        limiting_antigen = if (has_antigen) antigen[which.min(bead_count)] else NA_character_,
         bead_count = aggfun(bead_count),
-        limiting_analyte = .data$analyte[which.min(bead_count)],
         .groups = "drop"
       )
   } else {
@@ -67,8 +77,9 @@ well_bead_summary <- function(merged, view = "min",
       dplyr::filter(.data$analyte == view) |>
       dplyr::group_by(well_384, sample_id, sample_type, Quadrant) |>
       dplyr::summarise(
+        limiting_analyte = dplyr::first(analyte),
+        limiting_antigen = if (has_antigen) dplyr::first(antigen) else NA_character_,
         bead_count = dplyr::first(bead_count),
-        limiting_analyte = dplyr::first(.data$analyte),
         .groups = "drop"
       )
   }
@@ -89,7 +100,7 @@ plate_view_choices <- function(merged) {
            paste0(ants$antigen, " (", ants$analyte, ")"))
   )
   c(
-    "Worst bead \u2014 min" = "min",
+    "Lower bead \u2014 min" = "min",
     "Median across beads"   = "median",
     "Mean across beads"     = "mean",
     analyte_choices
@@ -98,8 +109,9 @@ plate_view_choices <- function(merged) {
 
 #' Interactive 384-well plate colored by bead-count quality.
 #'
-#' Returns a ggiraph girafe object (hover tooltip + multiple click selection)
-#' when `interactive = TRUE`, otherwise a plain ggplot (useful for exports).
+#' Returns a plotly widget (hover tooltip, zoom/pan/box-select via the mode
+#' bar) when `interactive = TRUE`, otherwise a plain ggplot (useful for
+#' exports).
 plot_plate_beadcount <- function(merged, view = "min",
                                  bad_max = QC_BAD_MAX, good_min = QC_GOOD_MIN,
                                  interactive = TRUE) {
@@ -115,7 +127,11 @@ plot_plate_beadcount <- function(merged, view = "min",
         sprintf(
           "Well %s\nSample: %s (%s)\nBead count: %s\nQuality: %s%s",
           well_384, sample_id, sample_type, round(bead_count), quality,
-          if (is_agg) paste0("\nLimiting bead: ", limiting_analyte) else ""
+          if (is_agg) {
+            # Prefer the human-readable antigen name; fall back to the raw
+            # "Analyte <bead_id>" label if no antigen table match exists.
+            paste0("\nLimiting bead: ", dplyr::coalesce(limiting_antigen, limiting_analyte))
+          } else ""
         )
       )
     )
@@ -128,38 +144,31 @@ plot_plate_beadcount <- function(merged, view = "min",
     paste0("Colored by bead count for ", label)
   }
 
-  p <- ggplot(grid, aes(x = col, y = row)) +
-    geom_tile_interactive(
-      aes(fill = quality, tooltip = tooltip, data_id = well_384),
-      color = "white", linewidth = 0.4
-    ) +
-    scale_fill_manual(
-      values = QUALITY_COLORS, na.value = "grey90",
-      drop = FALSE, name = "Bead count QC"
-    ) +
-    scale_x_continuous(breaks = 1:24, position = "top", expand = c(0, 0)) +
-    scale_y_reverse(breaks = 1:16, labels = LETTERS[1:16], expand = c(0, 0)) +
-    coord_equal() +
-    labs(x = NULL, y = NULL,
-         title = "384-well plate - bead count QC",
-         subtitle = subtitle) +
-    theme_minimal(base_size = 11) +
-    theme(
-      panel.grid = element_blank(),
-      axis.text = element_text(face = "bold"),
-      plot.title = element_text(face = "bold")
-    )
+  p <- suppressWarnings(
+    ggplot(grid, aes(x = col, y = row)) +
+      geom_tile(
+        aes(fill = quality, text = tooltip),
+        color = "white", linewidth = 0.4
+      ) +
+      scale_fill_manual(
+        values = QUALITY_COLORS, na.value = "grey90",
+        drop = FALSE, name = "Bead count QC"
+      ) +
+      scale_x_continuous(breaks = 1:24, position = "top", expand = c(0, 0)) +
+      scale_y_reverse(breaks = 1:16, labels = LETTERS[1:16], expand = c(0, 0)) +
+      coord_equal() +
+      labs(x = NULL, y = NULL,
+           title = "384-well plate - bead count QC",
+           subtitle = subtitle) +
+      theme_minimal(base_size = 11) +
+      theme(
+        panel.grid = element_blank(),
+        axis.text = element_text(face = "bold"),
+        plot.title = element_text(face = "bold")
+      )
+  )
 
   if (!interactive) return(p)
-
-  girafe(
-    ggobj = p, width_svg = 9, height_svg = 6.2,
-    options = list(
-      opts_hover(css = "stroke:black;stroke-width:1.5px;cursor:pointer;"),
-      opts_selection(type = "multiple", css = "stroke:black;stroke-width:2px;"),
-      opts_tooltip(css = "background:#333;color:#fff;padding:6px;border-radius:4px;font-size:12px;"),
-      opts_sizing(rescale = TRUE)
-    )
-  )
+  to_plotly(p)
 }
 
