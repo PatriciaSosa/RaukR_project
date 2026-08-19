@@ -1,15 +1,15 @@
-# Quality Control Shiny App for Affinity Proteomics — Serology Data
+# Serology Quality Control Shiny App for Affinity Proteomics analysis
 
-A Shiny application for quality control (QC) of multiplexed bead-based serology
+This is a Shiny app for quality control (QC) of multiplexed bead-based serology
 assays run on a **Luminex FlexMap 3D** instrument. The assay couples viral
 antigens to color-coded magnetic beads and incubates them with plasma/serum
-samples to capture virus-specific IgG antibodies, supporting viral surveillance.
+samples to capture virus-specific IgG antibodies to study viral surveillance.
 
-The app evaluates, filters, refines, and validates the raw FlexMap 3D export.
-It assesses samples, pools, and blanks using **bead count** and **Median MFI
+The app evaluates, filters, and validates the raw FlexMap 3D export.
+It assesses samples, pools, and blanks using **bead count** and **median MFI
 signal**, visualizes the 384-well plate, and lets the analyst remove
-low-quality wells or samples before exporting a clean, tidy dataset and a QC
-report documenting every decision.
+low-quality samples before exporting a clean, tidy long format dataset and a QC
+report documenting every decision as well as analytical specifications.
 
 ## Assay design
 
@@ -47,7 +47,7 @@ Filled example versions live in [`data/templates/`](data/templates/).
 3. Match wells to the traceability table (clinical codes, quadrants).
 4. Define controls (blanks, pools) and set QC thresholds.
 5. Assess and visualize the data, review flags manually.
-6. Remove poor wells or samples.
+6. Remove poor samples.
 7. Export the cleaned long-format table and QC report.
 
 ### Bead-count evaluation
@@ -63,26 +63,23 @@ The analyst can hover to inspect wells and choose to drop Bad and/or Moderate
 wells, or keep everything.
 
 ### Median MFI evaluation
-Thresholds are anchored to the control beads: the minimum tracks the empty/`Bare`
-(negative) signal and the maximum the `ahIgG` (positive) signal. Interactive
-plots include:
+Interactive plots include:
 
 - Scatter of abundance vs. control-bead MFI (empty, ahIgG, ahIgM), colored by
   sample type.
-- Boxplot of Median MFI by sample, colored by sample type (hover to identify
-  low/high samples by clinical code).
-- Boxplot of Median MFI by antigen with sample points, colored by sample type.
+- Boxplot of Median MFI by sample, colored by sample type.
+- Boxplot of Median MFI by antigen with observations, colored by sample type.
 - Boxplot of Median MFI by sample type, faceted/filterable by antigen.
 - CV% vs. antigen for **pools only** (assay reproducibility), with a 20%
-  reference line; antigens above 20% are flagged as variable.
+  reference line.
 
-Analysts may also upload a list of `sample_id`s to remove (e.g., lab errors).
+Analysts may also upload a list of `sample_id`s to remove (e.g., lab errors, outliers).
 
 ## Outputs
 
 - **Cleaned dataset** in long format (`sample_id`, `sample_type`, `antigen`,
   `well_384`, `Quadrant`, Median MFI, bead count, annotations).
-- **QC flags** — wells/samples with bad or moderate bead count.
+- **QC flags** — samples with bad or moderate bead count in at least one bead ID.
 - **QC report** — figures, thresholds, removals, and equipment metadata from the
   raw export, documenting every operation applied to the data.
 - **Figures** — downloadable QC plots.
@@ -102,7 +99,5 @@ project/
 
 ## Example figures
 
-_To be added once the app is built._
-
-<!-- ![Plate view](www/example_plate.png) -->
-<!-- ![MFI boxplot](www/example_mfi_boxplot.png) -->
+![Plate view](www/Plate_View.png)
+![Pool reproducibility](www/Pool_CV.png)
