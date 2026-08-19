@@ -105,7 +105,7 @@ plot_mfi_by_sample <- function(merged, quadrant = NULL, sample_types = NULL,
       geom_jitter(aes(color = sample_type, text = tooltip), width = 0.2, alpha = 0.5, size = 0.9) +
       scale_color_manual(values = SAMPLE_TYPE_COLORS, name = "Sample type") +
       scale_y_log10() +
-      labs(x = "Cohort", y = "Signal (log scale)",
+      labs(x = "Cohort", y = "Median MFI",
            title = "Raw MFI value vs all samples",
            subtitle = "Signals across samples") +
       theme_minimal(base_size = 11) +
@@ -138,15 +138,16 @@ plot_mfi_by_antigen <- function(merged, exclude_controls = FALSE,
 
   p <- suppressWarnings(
     ggplot(df, aes(x = antigen, y = median_mfi)) +
-      geom_boxplot(aes(fill = Antigen_Group), outlier.shape = NA, alpha = 0.3, linewidth = 0.3) +
-      geom_jitter(aes(color = sample_type, text = tooltip), width = 0.15, alpha = 0.5, size = 0.8) +
+      geom_jitter(aes(color = sample_type, text = tooltip), width = 0.15, alpha = 0.3, size = 0.8) +
+      geom_boxplot(aes(fill = Antigen_Group), outlier.shape = NA, alpha = 1.0, linewidth = 0.3) +
       scale_color_manual(values = SAMPLE_TYPE_COLORS, name = "Sample type") +
+      scale_fill_discrete(name = "Antigen group") +
       scale_y_continuous(labels = scales::comma) +
-      guides(fill = guide_legend(title = "Antigen group")) +
       labs(x = "Antigens", y = "Raw MFI Values",
            title = "Raw MFI value vs antigens") +
       theme_minimal(base_size = 11) +
-      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1))
   )
 
   if (interactive) to_plotly(p) else p
@@ -169,12 +170,12 @@ plot_mfi_by_antigen_facet <- function(merged, antigens = NULL, interactive = TRU
 
   p <- suppressWarnings(
     ggplot(df, aes(x = sample_type, y = median_mfi, color = sample_type)) +
-      geom_boxplot(outlier.shape = NA, fill = NA) +
       geom_jitter(aes(text = tooltip), width = 0.2, alpha = 0.4, size = 1.2) +
+      geom_boxplot(outlier.shape = NA, fill = NA) +
       scale_color_manual(values = SAMPLE_TYPE_COLORS, guide = "none") +
       scale_y_log10() +
       facet_wrap(~antigen, scales = "free_y") +
-      labs(x = NULL, y = "Median MFI (log scale)",
+      labs(x = NULL, y = "Median MFI",
            title = "Median MFI by sample type") +
       theme_minimal(base_size = 12)
   )
@@ -227,7 +228,7 @@ plot_pool_cv <- function(merged, pool_type = "pool", cv_threshold = 20,
     ggplot(cv, aes(x = antigen, y = cv_pct)) +
       geom_col(aes(fill = above, text = tooltip)) +
       geom_hline(yintercept = cv_threshold, linetype = "dashed", color = "grey40") +
-      scale_fill_manual(values = c(`TRUE` = "#D7301F", `FALSE` = "#2C7FB8"), guide = "none") +
+      scale_fill_manual(values = c(`TRUE` = "#D7301F", `FALSE` = "#09842c"), guide = "none") +
       labs(x = NULL, y = "CV % (Median MFI, pools)",
            title = "Pool reproducibility (CV%) by antigen",
            subtitle = paste0("Dashed line = ", cv_threshold, "% threshold; red = above threshold")) +

@@ -35,7 +35,7 @@ build_qc_report <- function(parsed, flags, removal_log = NULL) {
     "## Bead-count QC summary (384 wells)",
     bead_summary,
     "",
-    sprintf("**%d of %d wells** flagged for review (Bad/Moderate bead count).",
+    sprintf("**%d of %d wells** flagged for review (At least on bead ID with Bad/Moderate bead count).",
             review_n, nrow(flags))
   )
 

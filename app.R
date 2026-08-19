@@ -34,15 +34,15 @@ ui <- tagList(
     theme = bs_theme(version = 5, primary = "#2C7FB8"),
     sidebar = sidebar(
       title = "1. Load data",
-      fileInput("raw_csv", "Raw FlexMap 3D CSV", accept = ".csv"),
+      fileInput("raw_csv", "Raw FlexMap 3D (csv)", accept = ".csv"),
       hr(),
-      downloadButton("dl_antigen_template", "Antigen template", class = "btn-sm w-100 mb-1"),
-      downloadButton("dl_trace_template", "Traceability template", class = "btn-sm w-100 mb-2"),
-      fileInput("antigen_csv", "Completed antigen table", accept = ".csv"),
-      fileInput("trace_csv", "Completed traceability table", accept = ".csv"),
+      downloadButton("dl_antigen_template", "Antigen template (csv)", class = "btn-sm w-100 mb-1"),
+      downloadButton("dl_trace_template", "Traceability template (csv)", class = "btn-sm w-100 mb-2"),
+      fileInput("antigen_csv", "Completed antigen table (csv)", accept = ".csv"),
+      fileInput("trace_csv", "Completed traceability table (csv)", accept = ".csv"),
       hr(),
       uiOutput("data_status"),
-      helpText("Until you upload your own files, the app runs on the bundled synthetic example data.")
+      helpText("Until you upload your own files, the app runs on a synthetic example data.")
     ),
     nav_panel(
       "Bead count",
@@ -57,19 +57,19 @@ ui <- tagList(
       "MFI analysis",
       layout_column_wrap(
         width = 1/2,
-        card(full_screen = TRUE, card_header("Raw MFI vs control beads"),
+        card(full_screen = TRUE, card_header("Control beads analysis"),
              plotlyOutput("mfi_controls", height = "480px")),
-        card(full_screen = TRUE, card_header("Raw MFI vs antigens"),
+        card(full_screen = TRUE, card_header("Viral antibody distribution"),
              plotlyOutput("mfi_antigen", height = "480px")),
-        card(full_screen = TRUE, card_header("Median MFI vs sample type"),
+        card(full_screen = TRUE, card_header("Viral antibody abundances by sample type"),
              selectInput("facet_antigen", "Antigen", choices = NULL, width = "480px"),
              plotlyOutput("mfi_facet", height = "480px")),
-        card(full_screen = TRUE, card_header("Pool reproducibility (CV%)"),
+        card(full_screen = TRUE, card_header("Pool reproducibility"),
              plotlyOutput("mfi_cv", height = "480px"))
       ),
       card(
         full_screen = TRUE,
-        card_header("Raw MFI vs cohort"),
+        card_header("MFI signal across all samples"),
         plotlyOutput("mfi_sample", height = "550px")
       )
     ),
@@ -78,19 +78,21 @@ ui <- tagList(
       layout_column_wrap(
         width = 1/2,
         card(
-          card_header("Samples with bad or moderate bead count"),
+          card_header("Samples with bad or moderate bead count (at least one)"),
           DTOutput("flags_table")
         ),
         card(
           card_header("Filtering your data"),
-          checkboxGroupInput("remove_categories", "Remove samples by bead count quality:",
-                             choices = c("Bad", "Moderate"), selected = character(0)),
+          tags$label(class = "control-label mb-0", "Remove samples by bead count quality."),
+          tags$p(class = "text-muted small italic mb-2", 
+          style = "font-size: 0.85em; font-style: italic;","Keep in mind that automatic removal is based on minimum bead count values"),
+          checkboxGroupInput("remove_categories", label = NULL, choices = c("Bad", "Moderate"), selected = character(0)),
           p(class = "text-muted small",
             "MFI-based removal is always the analyst's decision, based on the MFI plots."),
           downloadButton("dl_sample_removal_template", "Download sample list here",
                          class = "btn-sm w-100 mb-2"),
-          helpText("Edit the downloaded file down to just the sample_id rows you want removed, then upload it below."),
-          fileInput("manual_removal_csv", "Sample removal list", accept = ".csv"),
+          helpText("Edit the downloaded file and keep the sample_id you want REMOVED, then upload it."),
+          fileInput("manual_removal_csv", "Sample group removal list (csv)", accept = ".csv"),
           actionButton("apply_removal", "Apply removal", class = "btn-primary"),
           hr(),
           verbatimTextOutput("removal_log")
@@ -262,3 +264,4 @@ server <- function(input, output, session) {
 }
 
 shinyApp(ui, server)
+

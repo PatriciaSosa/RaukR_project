@@ -100,7 +100,7 @@ plate_view_choices <- function(merged) {
            paste0(ants$antigen, " (", ants$analyte, ")"))
   )
   c(
-    "Lower bead \u2014 min" = "min",
+    "Lower bead count" = "min",
     "Median across beads"   = "median",
     "Mean across beads"     = "mean",
     analyte_choices
@@ -152,13 +152,13 @@ plot_plate_beadcount <- function(merged, view = "min",
       ) +
       scale_fill_manual(
         values = QUALITY_COLORS, na.value = "grey90",
-        drop = FALSE, name = "Bead count QC"
+        drop = FALSE, name = "Bead count quality"
       ) +
       scale_x_continuous(breaks = 1:24, position = "top", expand = c(0, 0)) +
       scale_y_reverse(breaks = 1:16, labels = LETTERS[1:16], expand = c(0, 0)) +
       coord_equal() +
       labs(x = NULL, y = NULL,
-           title = "384-well plate - bead count QC",
+           title = "384-well plate",
            subtitle = subtitle) +
       theme_minimal(base_size = 11) +
       theme(

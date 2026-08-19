@@ -278,7 +278,7 @@ merge_qc_data <- function(long, antigen_tbl, trace_tbl) {
 }
 
 # Colors for sample_type, reused across plots.
-SAMPLE_TYPE_COLORS <- c(sample = "#2C7FB8", pool = "#D95F02", blank = "#7F7F7F")
+SAMPLE_TYPE_COLORS <- c(sample = "#1239c4", pool = "#c55905", blank = "#393838")
 
 #' Convert a ggplot to an interactive plotly widget with sensible defaults:
 #' hover tooltips sourced from the `text` aesthetic, and the mode bar enabled
